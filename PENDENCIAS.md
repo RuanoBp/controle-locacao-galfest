@@ -1,3 +1,7 @@
+> ✅ **Tudo abaixo já foi concluído.** Veja o [RESUMO.md](RESUMO.md) para o
+> resumo atual (link do site, login e senha). Este arquivo fica só como
+> histórico do que foi necessário fazer.
+
 # Pendências para colocar o sistema no ar
 
 O código do sistema já está pronto (CRUD de itens/clientes/locações,
