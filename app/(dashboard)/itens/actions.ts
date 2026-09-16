@@ -66,18 +66,28 @@ export async function updateItem(
   redirect("/itens");
 }
 
-export async function deleteItem(formData: FormData) {
+export interface DeleteEmMassaResultado {
+  sucesso: number;
+  erro?: string;
+}
+
+export async function deleteItensEmMassa(ids: number[]): Promise<DeleteEmMassaResultado> {
   await requireUser();
-  const id = Number(formData.get("id"));
+  if (ids.length === 0) return { sucesso: 0 };
 
   const supabase = await createClient();
-  const { error } = await supabase.from("itens").delete().eq("id", id);
+  const { error, count } = await supabase
+    .from("itens")
+    .delete({ count: "exact" })
+    .in("id", ids);
 
   if (error) {
-    throw new Error(
-      `Não foi possível excluir: este item provavelmente está vinculado a uma locação. (${error.message})`,
-    );
+    return {
+      sucesso: 0,
+      erro: `Não foi possível excluir: um ou mais itens provavelmente estão vinculados a uma locação. (${error.message})`,
+    };
   }
 
   revalidatePath("/itens");
+  return { sucesso: count ?? ids.length };
 }

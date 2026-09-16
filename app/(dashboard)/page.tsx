@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { StatCard, Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/button";
+import { BarChart } from "@/components/dashboard/bar-chart";
 import {
   formatarMoeda,
   formatarData,
@@ -10,7 +11,7 @@ import {
   somarDias,
   valorTotalLocacao,
 } from "@/lib/calculos";
-import type { ItemMaisAlugado } from "@/lib/types";
+import { STATUS_LOCACAO, type ItemMaisAlugado } from "@/lib/types";
 
 export const metadata = { title: "Dashboard" };
 
@@ -38,6 +39,7 @@ export default async function DashboardPage() {
     { data: proximosRecolhimentos },
     { data: maisAlugados },
     { data: faturamentoRows },
+    { data: statusRows },
   ] = await Promise.all([
     supabase.from("itens").select("estoque_total, custo_aquisicao"),
     supabase
@@ -75,7 +77,13 @@ export default async function DashboardPage() {
       )
       .gte("data_entrega", inicioMes)
       .not("status", "in", "(Cancelada,Orçamento)"),
+    supabase.from("locacoes").select("status"),
   ]);
+
+  const contagemPorStatus = STATUS_LOCACAO.map((status) => ({
+    rotulo: status,
+    valor: statusRows?.filter((l) => l.status === status).length ?? 0,
+  }));
 
   const totalItensEstoque =
     itensAgg.data?.reduce((soma, i) => soma + i.estoque_total, 0) ?? 0;
@@ -146,28 +154,36 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      <Card>
-        <h2 className="mb-3 text-sm font-semibold text-slate-700">
-          Itens com maior taxa de utilização
-        </h2>
-        <p className="mb-3 text-xs text-slate-400">
-          Estimativa: total de unidades já alugadas (histórico) dividido pelo
-          estoque total do item.
-        </p>
-        <div className="space-y-2">
-          {(maisAlugados as ItemMaisAlugado[] | null)?.map((item) => (
-            <div key={item.id} className="flex items-center justify-between text-sm">
-              <span className="text-slate-700">{item.nome}</span>
-              <span className="text-slate-500">
-                {item.total_alugado} unid. alugadas · taxa {item.taxa_utilizacao}x
-              </span>
-            </div>
-          ))}
-          {(!maisAlugados || maisAlugados.length === 0) && (
-            <p className="text-sm text-slate-400">Sem locações registradas ainda.</p>
-          )}
-        </div>
-      </Card>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card>
+          <h2 className="mb-1 text-sm font-semibold text-slate-700">
+            Locações por status
+          </h2>
+          <p className="mb-3 text-xs text-slate-400">
+            Quantas locações estão em cada etapa (ativas, atrasadas, já
+            recolhidas, etc).
+          </p>
+          <BarChart dados={contagemPorStatus} />
+        </Card>
+
+        <Card>
+          <h2 className="mb-1 text-sm font-semibold text-slate-700">
+            Itens mais alugados
+          </h2>
+          <p className="mb-3 text-xs text-slate-400">
+            Total de unidades já alugadas (histórico), top 5.
+          </p>
+          <BarChart
+            corUnica="#2a78d6"
+            dados={
+              (maisAlugados as ItemMaisAlugado[] | null)?.map((item) => ({
+                rotulo: item.nome,
+                valor: item.total_alugado,
+              })) ?? []
+            }
+          />
+        </Card>
+      </div>
     </div>
   );
 }

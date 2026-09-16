@@ -68,18 +68,28 @@ export async function updateCliente(
   redirect("/clientes");
 }
 
-export async function deleteCliente(formData: FormData) {
+export interface DeleteEmMassaResultado {
+  sucesso: number;
+  erro?: string;
+}
+
+export async function deleteClientesEmMassa(ids: number[]): Promise<DeleteEmMassaResultado> {
   await requireUser();
-  const id = Number(formData.get("id"));
+  if (ids.length === 0) return { sucesso: 0 };
 
   const supabase = await createClient();
-  const { error } = await supabase.from("clientes").delete().eq("id", id);
+  const { error, count } = await supabase
+    .from("clientes")
+    .delete({ count: "exact" })
+    .in("id", ids);
 
   if (error) {
-    throw new Error(
-      `Não foi possível excluir: este cliente provavelmente possui locações. (${error.message})`,
-    );
+    return {
+      sucesso: 0,
+      erro: `Não foi possível excluir: um ou mais clientes provavelmente possuem locações. (${error.message})`,
+    };
   }
 
   revalidatePath("/clientes");
+  return { sucesso: count ?? ids.length };
 }
