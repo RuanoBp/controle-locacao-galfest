@@ -10,7 +10,7 @@ import type { ImportResultado } from "@/lib/import/types";
 const MAPA_COLUNAS = {
   nome: ["Nome Cliente", "Nome"],
   tipo: ["Tipo Cliente", "Tipo"],
-  cidade_bairro: ["Cidade ou Bairro", "Cidade/Bairro", "Cidade"],
+  cidade_bairro: ["Endereço", "Endereco", "Cidade ou Bairro", "Cidade/Bairro", "Cidade"],
   telefone: ["Telefone"],
 } as const;
 

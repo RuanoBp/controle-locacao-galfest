@@ -40,7 +40,7 @@ export function ClienteForm({
       </FormField>
 
       <FormField
-        label="Cidade ou Bairro"
+        label="Endereço"
         htmlFor="cidade_bairro"
         error={errors.cidade_bairro}
       >

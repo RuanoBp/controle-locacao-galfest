@@ -56,20 +56,20 @@ await criarPlanilha(
   [
     { header: "Nome Cliente", key: "nome" },
     { header: "Tipo Cliente", key: "tipo", width: 18 },
-    { header: "Cidade ou Bairro", key: "cidade_bairro" },
+    { header: "Endereço", key: "cidade_bairro" },
     { header: "Telefone", key: "telefone" },
   ],
   [
     {
       nome: "Buffet Sabor & Arte",
       tipo: "Buffet",
-      cidade_bairro: "Centro",
+      cidade_bairro: "Rua das Flores, 123 - Centro, São Paulo/SP",
       telefone: "(11) 91234-5678",
     },
     {
       nome: "Maria Silva",
       tipo: "Pessoa Física",
-      cidade_bairro: "Jardim das Flores",
+      cidade_bairro: "Av. Paulista, 900, apto 45 - Bela Vista, São Paulo/SP",
       telefone: "(11) 98888-1234",
     },
   ],

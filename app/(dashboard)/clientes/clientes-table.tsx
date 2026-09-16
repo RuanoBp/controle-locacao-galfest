@@ -89,7 +89,7 @@ export function ClientesTable({ clientes }: { clientes: Cliente[] }) {
               </th>
               <th className="px-4 py-3">Nome</th>
               <th className="px-4 py-3">Tipo</th>
-              <th className="px-4 py-3">Cidade/Bairro</th>
+              <th className="px-4 py-3">Endereço</th>
               <th className="px-4 py-3">Telefone</th>
               <th className="px-4 py-3" />
             </tr>
