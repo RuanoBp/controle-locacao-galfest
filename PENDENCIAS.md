@@ -8,6 +8,36 @@ verdade. Nada disso exige mexer no código — são só passos de configuração
 Veja também o [README.md](README.md), que explica cada uma dessas partes
 com mais detalhe. Este arquivo é só o checklist do que ainda falta fazer.
 
+## Instruções para quem for executar isso (Copilot ou outro assistente)
+
+Leia este arquivo inteiro antes de começar. Siga o checklist abaixo na
+ordem. Alguns pontos importantes de como agir em cada passo:
+
+1. **Antes de pedir para criar uma conta nova em qualquer serviço (GitHub,
+   Supabase, Vercel), verifique primeiro se já existe uma sessão logada
+   nesse computador** (navegador já logado, ou CLI já autenticado). Não
+   crie contas novas por padrão — o objetivo é usar as contas que a pessoa
+   já tem, se já estiverem acessíveis neste computador.
+   - GitHub: rode `gh auth status` (se o `gh` CLI estiver instalado) ou
+     verifique se o navegador já abre github.com logado.
+   - Vercel: rode `vercel whoami` (se o `vercel` CLI estiver instalado) ou
+     verifique se o navegador já abre vercel.com logado.
+   - Supabase: verifique se o navegador já abre supabase.com/dashboard
+     logado.
+2. **Se não houver sessão logada em algum desses serviços**, pare e peça
+   para a pessoa fazer login manualmente (ela precisa digitar usuário/senha
+   ou usar 2FA — isso não pode ser feito sem a pessoa presente). Não tente
+   adivinhar nem criar credenciais novas sem perguntar antes.
+3. **No passo de criar o usuário de login do site** (passo 4 do checklist
+   abaixo): depois de rodar o comando `npm run criar-admin`, **avise
+   claramente, em texto, para a pessoa**, algo como:
+   > "Usuário de login do site criado com sucesso. E-mail: `<e-mail usado>`
+   > — Senha: `Galfest123`. Use esses dois dados na tela de login do site."
+
+   Isso é importante porque o e-mail exato usado (fictício ou real) precisa
+   ficar registrado em algum lugar visível — sem ele a pessoa não consegue
+   entrar no sistema depois.
+
 ## Credenciais de login já decididas
 
 - **Login desejado:** `ADMGalfest`
@@ -35,12 +65,16 @@ campo "E-mail" recebe o e-mail escolhido, e o campo "Senha" recebe
 
 ## Checklist do que falta
 
-- [ ] **1. Criar conta no GitHub** (se ainda não tiver) e criar um
-      repositório **privado** (ex: `controle-locacao-galfest`).
+- [ ] **1. GitHub** — verificar se já tem sessão logada neste computador
+      (ver seção acima). Se não tiver, pedir para a pessoa fazer login. Só
+      então criar um repositório **privado** (ex:
+      `controle-locacao-galfest`).
 - [ ] **2. Subir o código para esse repositório** (`git remote add origin ...`
       e `git push -u origin main` — o projeto já está commitado localmente).
-- [ ] **3. Criar conta no [supabase.com](https://supabase.com)** e um novo
-      projeto (gratuito).
+- [ ] **3. Supabase** — verificar se já tem sessão logada neste computador
+      em [supabase.com](https://supabase.com) (ver seção acima). Se não
+      tiver, pedir para a pessoa fazer login/criar conta. Depois, criar um
+      novo projeto (gratuito).
   - No **SQL Editor** do painel, rodar o conteúdo do arquivo
     [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql)
     (cria as tabelas, views e regras de segurança).
@@ -57,7 +91,13 @@ campo "E-mail" recebe o e-mail escolhido, e o campo "Senha" recebe
   ```
   (troque o e-mail pelo escolhido na seção acima). Esse mesmo comando serve
   para trocar a senha depois, se precisar — é só rodar de novo.
-- [ ] **5. Criar conta na [vercel.com](https://vercel.com)** e importar o
+
+  **Depois de rodar o comando, avisar por escrito qual e-mail foi usado**
+  (ver seção "Instruções para quem for executar isso" acima) — sem essa
+  informação anotada em algum lugar, ninguém consegue logar no site depois.
+- [ ] **5. Vercel** — verificar se já tem sessão logada neste computador em
+      [vercel.com](https://vercel.com) (ver seção acima). Se não tiver,
+      pedir para a pessoa fazer login/criar conta. Depois, importar o
       repositório do GitHub.
   - Em **Settings > Environment Variables**, cadastrar como secrets:
     - `NEXT_PUBLIC_SUPABASE_URL`
