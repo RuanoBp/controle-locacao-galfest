@@ -5,6 +5,7 @@ import { StatusBadge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/button";
 import { BarChart } from "@/components/dashboard/bar-chart";
 import {
+  estaAtrasada,
   formatarMoeda,
   formatarData,
   hojeISO,
@@ -77,12 +78,23 @@ export default async function DashboardPage() {
       )
       .gte("data_entrega", inicioMes)
       .not("status", "in", "(Cancelada,Orçamento)"),
-    supabase.from("locacoes").select("status"),
+    supabase.from("locacoes").select("status, data_recolher"),
   ]);
+
+  // "Atrasada" aqui é calculado pela data (recolhimento já vencido e a
+  // locação ainda não foi recolhida/cancelada), igual ao card "Locações
+  // atrasadas" acima — não pelo texto do status, que pode ainda estar como
+  // "Confirmada" ou "Entregue" mesmo já tendo vencido.
+  function statusEfetivo(status: string, dataRecolher: string) {
+    if (status === "Cancelada" || status === "Recolhida") return status;
+    return estaAtrasada(status, dataRecolher) ? "Atrasada" : status;
+  }
 
   const contagemPorStatus = STATUS_LOCACAO.map((status) => ({
     rotulo: status,
-    valor: statusRows?.filter((l) => l.status === status).length ?? 0,
+    valor:
+      statusRows?.filter((l) => statusEfetivo(l.status, l.data_recolher) === status)
+        .length ?? 0,
   }));
 
   const totalItensEstoque =
