@@ -32,9 +32,9 @@ function parseLocacaoForm(formData: FormData) {
 
   return locacaoSchema.safeParse({
     cliente_id: formData.get("cliente_id"),
-    data: formData.get("data"),
     data_entrega: formData.get("data_entrega"),
     data_recolher: formData.get("data_recolher"),
+    diarias: formData.get("diarias"),
     status: formData.get("status"),
     valor_frete: formData.get("valor_frete"),
     itens,
