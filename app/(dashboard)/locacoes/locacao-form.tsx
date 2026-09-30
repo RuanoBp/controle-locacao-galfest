@@ -42,6 +42,7 @@ export function LocacaoForm({
 
   const [dataEntrega, setDataEntrega] = useState(locacao?.data_entrega ?? "");
   const [dataRecolher, setDataRecolher] = useState(locacao?.data_recolher ?? "");
+  const [diarias, setDiarias] = useState(locacao?.diarias ?? 1);
   const [valorFrete, setValorFrete] = useState(locacao?.valor_frete ?? 0);
   const [linhas, setLinhas] = useState<LinhaItem[]>(() => {
     if (locacao?.itens_alugados?.length) {
@@ -69,15 +70,16 @@ export function LocacaoForm({
         preco_diaria: itensPorId.get(l.item_id)?.preco_diaria ?? 0,
       }));
 
-    if (!dataEntrega || !dataRecolher) return 0;
-
     return valorTotalLocacao({
       itens: itensValidos,
-      data_entrega: dataEntrega,
-      data_recolher: dataRecolher,
+      diarias,
       valor_frete: Number(valorFrete) || 0,
     });
-  }, [linhas, dataEntrega, dataRecolher, valorFrete, itensPorId]);
+  }, [linhas, diarias, valorFrete, itensPorId]);
+
+  function alterarDiarias(novoValor: number) {
+    setDiarias(Math.max(1, Math.floor(novoValor) || 1));
+  }
 
   function atualizarLinha(key: string, campo: keyof LinhaItem, valor: string) {
     setLinhas((atual) =>
@@ -165,16 +167,6 @@ export function LocacaoForm({
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <FormField label="Data" htmlFor="data" required error={errors.data}>
-          <Input
-            id="data"
-            name="data"
-            type="date"
-            defaultValue={locacao?.data ?? new Date().toISOString().slice(0, 10)}
-            required
-          />
-        </FormField>
-
         <FormField
           label="Data para Entrega"
           htmlFor="data_entrega"
@@ -211,6 +203,38 @@ export function LocacaoForm({
             }}
             required
           />
+        </FormField>
+        <FormField label="Diárias" htmlFor="diarias" required error={errors.diarias}>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => alterarDiarias(diarias - 1)}
+              disabled={diarias <= 1}
+              aria-label="Remover uma diária"
+            >
+              −
+            </Button>
+            <Input
+              id="diarias"
+              name="diarias"
+              type="number"
+              min={1}
+              step={1}
+              value={diarias}
+              onChange={(e) => alterarDiarias(Number(e.target.value))}
+              className="w-20 text-center"
+              required
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => alterarDiarias(diarias + 1)}
+              aria-label="Adicionar uma diária"
+            >
+              +
+            </Button>
+          </div>
         </FormField>
       </div>
 
@@ -335,6 +359,9 @@ export function LocacaoForm({
         <span className="text-sm text-slate-600">Valor total estimado: </span>
         <span className="text-lg font-semibold text-slate-900">
           {formatarMoeda(valorTotal)}
+        </span>
+        <span className="ml-2 text-xs text-slate-500">
+          ({diarias} {diarias === 1 ? "diária" : "diárias"})
         </span>
       </div>
 
