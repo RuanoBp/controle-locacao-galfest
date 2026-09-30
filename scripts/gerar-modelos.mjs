@@ -79,9 +79,9 @@ await criarPlanilha(
   "modelo-locacoes.xlsx",
   [
     { header: "Cliente", key: "cliente" },
-    { header: "Data", key: "data", width: 14 },
     { header: "Data para Entrega", key: "data_entrega", width: 18 },
     { header: "Data para Recolher", key: "data_recolher", width: 18 },
+    { header: "Diárias", key: "diarias", width: 10 },
     { header: "Status", key: "status", width: 14 },
     { header: "Valor Frete", key: "valor_frete", width: 14 },
     { header: "Itens", key: "itens", width: 40 },
@@ -89,9 +89,9 @@ await criarPlanilha(
   [
     {
       cliente: "Buffet Sabor & Arte",
-      data: "2026-01-10",
       data_entrega: "2026-01-15",
       data_recolher: "2026-01-16",
+      diarias: 2,
       status: "Confirmada",
       valor_frete: 80,
       itens: "Mesa redonda 8 lugares:10;Cadeira tiffany:80",
