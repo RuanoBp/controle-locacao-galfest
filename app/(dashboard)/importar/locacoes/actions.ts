@@ -10,9 +10,9 @@ import type { ImportResultado } from "@/lib/import/types";
 
 const MAPA_COLUNAS = {
   cliente: ["Cliente", "Nome Cliente"],
-  data: ["Data"],
   data_entrega: ["Data para Entrega", "Data Entrega"],
   data_recolher: ["Data para Recolher", "Data Recolher"],
+  diarias: ["Diárias", "Diarias", "Qtd Diárias", "Quantidade de Diárias"],
   status: ["Status"],
   valor_frete: ["Valor Frete"],
   itens: ["Itens", "Itens Alugados"],
@@ -41,9 +41,9 @@ function periodosSeSobrepoem(
 interface LinhaValidada {
   numeroLinha: number;
   cliente_id: number;
-  data: string;
   data_entrega: string;
   data_recolher: string;
+  diarias: number;
   status: string;
   valor_frete: number;
   itensResolvidos: { item_id: number; nome: string; quantidade: number; preco_diaria: number }[];
@@ -118,10 +118,9 @@ export async function importarLocacoes(
       continue;
     }
 
-    const data = normalizarData(bruto.data);
     const dataEntrega = normalizarData(bruto.data_entrega);
     const dataRecolher = normalizarData(bruto.data_recolher);
-    if (!data || !dataEntrega || !dataRecolher) {
+    if (!dataEntrega || !dataRecolher) {
       erros.push({
         linha: numeroLinha,
         mensagem: "Datas devem estar no formato AAAA-MM-DD ou DD/MM/AAAA.",
@@ -180,9 +179,9 @@ export async function importarLocacoes(
     linhasValidas.push({
       numeroLinha,
       cliente_id: clienteId,
-      data,
       data_entrega: dataEntrega,
       data_recolher: dataRecolher,
+      diarias: bruto.diarias,
       status,
       valor_frete: bruto.valor_frete,
       itensResolvidos,
@@ -270,9 +269,9 @@ export async function importarLocacoes(
       .insert(
         linhasParaInserir.map((l) => ({
           cliente_id: l.cliente_id,
-          data: l.data,
           data_entrega: l.data_entrega,
           data_recolher: l.data_recolher,
+          diarias: l.diarias,
           status: l.status,
           valor_frete: l.valor_frete,
         })),
