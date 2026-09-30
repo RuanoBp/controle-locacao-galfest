@@ -12,9 +12,12 @@ export const itemAlugadoSchema = z.object({
 export const locacaoSchema = z
   .object({
     cliente_id: z.coerce.number("Selecione um cliente").int().positive("Selecione um cliente"),
-    data: z.string().min(1, "Informe a data"),
     data_entrega: z.string().min(1, "Informe a data de entrega"),
     data_recolher: z.string().min(1, "Informe a data de recolhimento"),
+    diarias: z.coerce
+      .number("Informe o número de diárias")
+      .int("Diárias deve ser um número inteiro")
+      .min(1, "A locação precisa ter pelo menos 1 diária"),
     status: z.enum(STATUS_LOCACAO),
     valor_frete: z.coerce.number("Informe um número válido").min(0, "Frete não pode ser negativo").default(0),
     itens: z
@@ -33,9 +36,12 @@ export type LocacaoInput = z.infer<typeof locacaoSchema>;
 // "Mesa redonda:10;Cadeira tiffany:50"
 export const locacaoImportSchema = z.object({
   cliente: z.string().trim().min(1, "Cliente é obrigatório (nome exato já cadastrado)"),
-  data: z.string().trim().min(1, "Data é obrigatória"),
   data_entrega: z.string().trim().min(1, "Data para Entrega é obrigatória"),
   data_recolher: z.string().trim().min(1, "Data para Recolher é obrigatória"),
+  diarias: z.coerce
+    .number("Diárias deve ser um número")
+    .int("Diárias deve ser um número inteiro")
+    .min(1, "Diárias deve ser pelo menos 1"),
   status: z.string().trim().min(1, "Status é obrigatório"),
   valor_frete: z.coerce.number("Valor Frete deve ser um número").min(0).default(0),
   itens: z.string().trim().min(1, "Informe ao menos um item no formato Nome:Quantidade"),
