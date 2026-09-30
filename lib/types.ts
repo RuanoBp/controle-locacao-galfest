@@ -56,6 +56,7 @@ export interface Locacao {
   data: string;
   data_entrega: string;
   data_recolher: string;
+  diarias: number;
   status: StatusLocacao;
   valor_frete: number;
   created_at: string;
