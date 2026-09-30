@@ -16,6 +16,8 @@ export default async function ImportarLocacoesPage() {
         A coluna <strong>Itens</strong> deve listar os itens da locação no
         formato <code className="rounded bg-slate-100 px-1">Nome:Quantidade</code>,
         separados por ponto e vírgula — ex: <code className="rounded bg-slate-100 px-1">Mesa redonda:10;Cadeira tiffany:50</code>.
+        A coluna <strong>Diárias</strong> define quantas diárias serão cobradas
+        (o valor é calculado por ela, não pelas datas).
         Clientes e itens citados precisam já estar cadastrados.
       </p>
       <ImportForm action={importarLocacoes} modeloHref="/modelos/modelo-locacoes.xlsx" />
