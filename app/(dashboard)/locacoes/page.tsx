@@ -12,9 +12,9 @@ export const metadata = { title: "Locações" };
 
 interface LinhaLocacao {
   id: number;
-  data: string;
   data_entrega: string;
   data_recolher: string;
+  diarias: number;
   status: string;
   valor_frete: number;
   cliente: { id: number; nome: string } | null;
@@ -43,7 +43,7 @@ export default async function LocacoesPage({
   let query = supabase
     .from("locacoes")
     .select(
-      "id, data, data_entrega, data_recolher, status, valor_frete, cliente:clientes(id, nome), itens_alugados(quantidade, preco_diaria)",
+      "id, data_entrega, data_recolher, diarias, status, valor_frete, cliente:clientes(id, nome), itens_alugados(quantidade, preco_diaria)",
     )
     .order("data_entrega", { ascending: false });
 
@@ -128,6 +128,7 @@ export default async function LocacoesPage({
                 <th className="px-4 py-3">Cliente</th>
                 <th className="px-4 py-3">Entrega</th>
                 <th className="px-4 py-3">Recolher</th>
+                <th className="px-4 py-3">Diárias</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Valor Total</th>
                 <th className="px-4 py-3" />
@@ -137,8 +138,7 @@ export default async function LocacoesPage({
               {locacoes?.map((locacao) => {
                 const valorTotal = valorTotalLocacao({
                   itens: locacao.itens_alugados ?? [],
-                  data_entrega: locacao.data_entrega,
-                  data_recolher: locacao.data_recolher,
+                  diarias: locacao.diarias,
                   valor_frete: locacao.valor_frete,
                 });
                 const atrasada = estaAtrasada(locacao.status, locacao.data_recolher);
@@ -154,6 +154,7 @@ export default async function LocacoesPage({
                     <td className="px-4 py-3 text-slate-600">
                       {formatarData(locacao.data_recolher)}
                     </td>
+                    <td className="px-4 py-3 text-slate-600">{locacao.diarias}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-1">
                         <StatusBadge status={locacao.status} />
@@ -186,7 +187,7 @@ export default async function LocacoesPage({
               })}
               {locacoes?.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-slate-400">
+                  <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
                     Nenhuma locação encontrada.
                   </td>
                 </tr>
