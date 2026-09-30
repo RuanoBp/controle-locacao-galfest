@@ -1,35 +1,21 @@
-/** Número de diárias entre a entrega e o recolhimento (mínimo 1). */
-export function numeroDiarias(dataEntrega: string, dataRecolher: string): number {
-  const entrega = new Date(dataEntrega);
-  const recolher = new Date(dataRecolher);
-  const dias = Math.round(
-    (recolher.getTime() - entrega.getTime()) / (1000 * 60 * 60 * 24),
-  );
-  return Math.max(1, dias);
-}
-
 export function valorItensLocacao(
   itens: { quantidade: number; preco_diaria: number }[],
-  dataEntrega: string,
-  dataRecolher: string,
+  diarias: number,
 ): number {
-  const diarias = numeroDiarias(dataEntrega, dataRecolher);
+  const numDiarias = Math.max(1, Math.floor(Number(diarias) || 1));
   return itens.reduce(
-    (total, item) => total + item.quantidade * item.preco_diaria * diarias,
+    (total, item) => total + item.quantidade * item.preco_diaria * numDiarias,
     0,
   );
 }
 
+/** Valor total = soma(quantidade × preço diária × nº de diárias) + frete. */
 export function valorTotalLocacao(params: {
   itens: { quantidade: number; preco_diaria: number }[];
-  data_entrega: string;
-  data_recolher: string;
+  diarias: number;
   valor_frete: number;
 }): number {
-  return (
-    valorItensLocacao(params.itens, params.data_entrega, params.data_recolher) +
-    params.valor_frete
-  );
+  return valorItensLocacao(params.itens, params.diarias) + Number(params.valor_frete ?? 0);
 }
 
 export function formatarMoeda(valor: number): string {
