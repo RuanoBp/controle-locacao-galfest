@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "gerar-modelos": "node scripts/gerar-modelos.mjs",
-    "criar-admin": "node scripts/criar-admin.mjs"
+    "criar-admin": "node scripts/criar-admin.mjs",
+    "aplicar-bi": "node scripts/aplicar-migracao-bi.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

@@ -1,20 +1,15 @@
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { StatCard, Card } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/button";
-import { BarChart } from "@/components/dashboard/bar-chart";
-import {
-  estaAtrasada,
-  formatarMoeda,
-  formatarData,
-  hojeISO,
-  somarDias,
-  valorTotalLocacao,
-} from "@/lib/calculos";
-import { STATUS_LOCACAO, type ItemMaisAlugado } from "@/lib/types";
+import { formatarData, hojeISO, somarDias } from "@/lib/calculos";
+import { buscarDadosBI } from "@/lib/bi/queries";
+import { BIFiltros } from "@/components/dashboard/bi-filtros";
+import { BIKpis } from "@/components/dashboard/bi-kpis";
+import { BIGraficos } from "@/components/dashboard/bi-graficos";
 
-export const metadata = { title: "Dashboard" };
+export const metadata = { title: "Dashboard & BI" };
 
 interface LocacaoProxima {
   id: number;
@@ -24,34 +19,32 @@ interface LocacaoProxima {
   cliente: { nome: string } | null;
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    ano?: string;
+    mes?: string;
+    trimestre?: string;
+    categoria_id?: string;
+    tipo_cliente_id?: string;
+    status_id?: string;
+  }>;
+}) {
   await requireUser();
+  const filtros = await searchParams;
   const supabase = await createClient();
 
   const hoje = hojeISO();
   const em7dias = somarDias(hoje, 7);
-  const inicioMes = hoje.slice(0, 8) + "01";
 
+  // Executa simultaneamente as consultas do BI e as consultas operacionais
   const [
-    itensAgg,
-    { count: locacoesAtivas },
-    { count: locacoesAtrasadas },
+    { dados: dadosBI, erroMigracao },
     { data: proximasEntregas },
     { data: proximosRecolhimentos },
-    { data: maisAlugados },
-    { data: faturamentoRows },
-    { data: statusRows },
   ] = await Promise.all([
-    supabase.from("itens").select("estoque_total, custo_aquisicao"),
-    supabase
-      .from("locacoes")
-      .select("id", { count: "exact", head: true })
-      .in("status", ["Confirmada", "Entregue"]),
-    supabase
-      .from("locacoes")
-      .select("id", { count: "exact", head: true })
-      .lt("data_recolher", hoje)
-      .not("status", "in", "(Recolhida,Cancelada)"),
+    buscarDadosBI(supabase, filtros),
     supabase
       .from("locacoes")
       .select("id, data_entrega, data_recolher, status, cliente:clientes(nome)")
@@ -66,134 +59,83 @@ export default async function DashboardPage() {
       .lte("data_recolher", em7dias)
       .not("status", "in", "(Recolhida,Cancelada)")
       .order("data_recolher"),
-    supabase
-      .from("v_itens_mais_alugados")
-      .select("*")
-      .order("total_alugado", { ascending: false })
-      .limit(5),
-    supabase
-      .from("locacoes")
-      .select(
-        "valor_frete, status, data_entrega, diarias, itens_alugados(quantidade, preco_diaria)",
-      )
-      .gte("data_entrega", inicioMes)
-      .not("status", "in", "(Cancelada,Orçamento)"),
-    supabase.from("locacoes").select("status, data_recolher"),
   ]);
-
-  // "Atrasada" aqui é calculado pela data (recolhimento já vencido e a
-  // locação ainda não foi recolhida/cancelada), igual ao card "Locações
-  // atrasadas" acima — não pelo texto do status, que pode ainda estar como
-  // "Confirmada" ou "Entregue" mesmo já tendo vencido.
-  function statusEfetivo(status: string, dataRecolher: string) {
-    if (status === "Cancelada" || status === "Recolhida") return status;
-    return estaAtrasada(status, dataRecolher) ? "Atrasada" : status;
-  }
-
-  const contagemPorStatus = STATUS_LOCACAO.map((status) => ({
-    rotulo: status,
-    valor:
-      statusRows?.filter((l) => statusEfetivo(l.status, l.data_recolher) === status)
-        .length ?? 0,
-  }));
-
-  const totalItensEstoque =
-    itensAgg.data?.reduce((soma, i) => soma + i.estoque_total, 0) ?? 0;
-  const valorInvestido =
-    itensAgg.data?.reduce(
-      (soma, i) => soma + i.estoque_total * i.custo_aquisicao,
-      0,
-    ) ?? 0;
-
-  const faturamentoMes =
-    faturamentoRows?.reduce(
-      (soma, l) =>
-        soma +
-        valorTotalLocacao({
-          itens: l.itens_alugados ?? [],
-          diarias: l.diarias,
-          valor_frete: l.valor_frete,
-        }),
-      0,
-    ) ?? 0;
 
   return (
     <div className="space-y-8">
-      <h1 className="text-xl font-semibold text-slate-900">Dashboard</h1>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          label="Itens em estoque"
-          value={String(totalItensEstoque)}
-          hint={`Valor investido: ${formatarMoeda(valorInvestido)}`}
-        />
-        <StatCard
-          label="Locações ativas"
-          value={String(locacoesAtivas ?? 0)}
-          hint="Confirmadas ou entregues"
-        />
-        <StatCard
-          label="Locações atrasadas"
-          value={String(locacoesAtrasadas ?? 0)}
-          tone={(locacoesAtrasadas ?? 0) > 0 ? "danger" : "default"}
-          hint="Recolhimento já venceu"
-        />
-        <StatCard
-          label="Faturamento do mês"
-          value={formatarMoeda(faturamentoMes)}
-          tone="success"
-          hint="Locações confirmadas em diante"
-        />
+      {/* Cabeçalho */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">Dashboard & BI Analítico</h1>
+          <p className="text-xs text-slate-500">
+            Inteligência de locações, faturamento multidimensional e controle operacional
+          </p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card>
-          <h2 className="mb-3 text-sm font-semibold text-slate-700">
-            Próximas entregas (7 dias)
-          </h2>
-          <ListaLocacoes locacoes={proximasEntregas as LocacaoProxima[] | null} campoData="data_entrega" />
-        </Card>
-
-        <Card>
-          <h2 className="mb-3 text-sm font-semibold text-slate-700">
-            Próximos recolhimentos (7 dias)
-          </h2>
-          <ListaLocacoes
-            locacoes={proximosRecolhimentos as LocacaoProxima[] | null}
-            campoData="data_recolher"
-          />
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card>
-          <h2 className="mb-1 text-sm font-semibold text-slate-700">
-            Locações por status
-          </h2>
-          <p className="mb-3 text-xs text-slate-400">
-            Quantas locações estão em cada etapa (ativas, atrasadas, já
-            recolhidas, etc).
+      {/* Aviso caso a migração do Supabase ainda não tenha sido executada */}
+      {erroMigracao && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+          <h3 className="font-semibold text-sm text-amber-950 flex items-center gap-2">
+            ⚠️ Migração do Modelo Dimensional (BI) Pendente no Supabase
+          </h3>
+          <p className="mt-1 text-xs text-amber-800">
+            O arquivo SQL com o Star Schema foi criado em{" "}
+            <code className="bg-amber-100 px-1 py-0.5 rounded font-mono">
+              supabase/migrations/0002_bi_star_schema.sql
+            </code>
+            . Para habilitar os dados do BI, copie o conteúdo desse arquivo, abra o{" "}
+            <strong>SQL Editor</strong> no painel do Supabase e clique em <strong>Run</strong>.
           </p>
-          <BarChart dados={contagemPorStatus} />
-        </Card>
+        </div>
+      )}
 
-        <Card>
-          <h2 className="mb-1 text-sm font-semibold text-slate-700">
-            Itens mais alugados
-          </h2>
-          <p className="mb-3 text-xs text-slate-400">
-            Total de unidades já alugadas (histórico), top 5.
-          </p>
-          <BarChart
-            corUnica="#2a78d6"
-            dados={
-              (maisAlugados as ItemMaisAlugado[] | null)?.map((item) => ({
-                rotulo: item.nome,
-                valor: item.total_alugado,
-              })) ?? []
-            }
-          />
-        </Card>
+      {/* 1. Barra de Filtros Multidimensionais */}
+      <BIFiltros
+        anos={dadosBI.opcoesFiltros.anos}
+        categorias={dadosBI.opcoesFiltros.categorias}
+        tiposCliente={dadosBI.opcoesFiltros.tiposCliente}
+        statusList={dadosBI.opcoesFiltros.statusList}
+      />
+
+      {/* 2. Cards de KPIs Principais */}
+      <BIKpis kpis={dadosBI.kpis} />
+
+      {/* 3. Gráficos Analíticos de BI */}
+      <BIGraficos
+        evolucaoMensal={dadosBI.evolucaoMensal}
+        faturamentoPorCategoria={dadosBI.faturamentoPorCategoria}
+        faturamentoPorTipoCliente={dadosBI.faturamentoPorTipoCliente}
+        locacoesPorStatus={dadosBI.locacoesPorStatus}
+        topItens={dadosBI.topItens}
+      />
+
+      {/* 4. Painel Operacional Logístico (Próximos 7 dias) */}
+      <div className="space-y-3 pt-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+          Operação Imediata (Próximos 7 Dias)
+        </h2>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <Card>
+            <h3 className="mb-3 text-sm font-semibold text-slate-700">
+              Próximas entregas agendadas
+            </h3>
+            <ListaLocacoes
+              locacoes={proximasEntregas as LocacaoProxima[] | null}
+              campoData="data_entrega"
+            />
+          </Card>
+
+          <Card>
+            <h3 className="mb-3 text-sm font-semibold text-slate-700">
+              Próximos recolhimentos agendados
+            </h3>
+            <ListaLocacoes
+              locacoes={proximosRecolhimentos as LocacaoProxima[] | null}
+              campoData="data_recolher"
+            />
+          </Card>
+        </div>
       </div>
     </div>
   );
