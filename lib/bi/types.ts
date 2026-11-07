@@ -57,6 +57,9 @@ export interface FatoLocacao {
   valor_item: number;
 }
 
+// Apenas 2 visões especializadas: Financeiro e Operacional
+export type AbaBI = "financeiro" | "operacional";
+
 // Parâmetros de Filtros do BI (recebidos via URL / searchParams)
 export interface FiltrosBI {
   ano?: string;
@@ -67,15 +70,21 @@ export interface FiltrosBI {
   categoria_id?: string;
   tipo_cliente_id?: string;
   status_id?: string;
+  tab?: AbaBI;
 }
 
-// KPIs Agregados do BI
+// KPIs Agregados do BI (Financeiros e Operacionais)
 export interface KpisBI {
+  // Financeiros
   faturamentoTotal: number;
   totalContratos: number;
   totalPecasAlugadas: number;
   ticketMedio: number;
   precoMedioDiaria: number;
+  // Operacionais
+  tempoMedioLocacaoDias: number;
+  mediaDiasAtraso: number;
+  locacoesAtrasadasQtd: number;
 }
 
 // Séries e Gráficos do BI
@@ -84,6 +93,23 @@ export interface PontoEvolucaoMensal {
   rotulo: string; // Ex: 'Jan/2026'
   faturamento: number;
   volumeContratos: number;
+}
+
+export interface PontoDiario {
+  data: string; // YYYY-MM-DD
+  dia: number;
+  diaSemana: string;
+  faturamento: number;
+  volumeContratos: number;
+  ehFimDeSemana: boolean;
+}
+
+export interface FimDeSemanaCampeao {
+  rotulo: string; // Ex: "10 a 12 de Outubro"
+  dataInicio: string;
+  dataFim: string;
+  faturamento: number;
+  contratos: number;
 }
 
 export interface PontoCategoria {
@@ -105,6 +131,7 @@ export interface PontoStatus {
   status: string;
   faturamento: number;
   quantidade: number;
+  percentual: number;
 }
 
 export interface PontoItemRanking {
@@ -118,6 +145,8 @@ export interface PontoItemRanking {
 export interface DadosDashboardBI {
   kpis: KpisBI;
   evolucaoMensal: PontoEvolucaoMensal[];
+  evolucaoDiaria: PontoDiario[];
+  fimDeSemanaCampeao: FimDeSemanaCampeao | null;
   faturamentoPorCategoria: PontoCategoria[];
   faturamentoPorTipoCliente: PontoTipoCliente[];
   locacoesPorStatus: PontoStatus[];
