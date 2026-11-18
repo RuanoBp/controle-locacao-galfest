@@ -88,11 +88,50 @@ export interface KpisBI {
 }
 
 // Séries e Gráficos do BI
+export interface ResumoLocacaoDia {
+  idLocacao: number;
+  clienteNome: string;
+  tipoCliente: string;
+  status: string;
+  dataEntrega: string;
+  dataRecolhimento: string | null;
+  valorTotal: number;
+  itensResumo: { nome: string; quantidade: number }[];
+}
+
+export interface DetalheMesBI {
+  nomeCompleto: string;
+  totalPecas: number;
+  ticketMedio: number;
+  participacaoPercentual: number;
+  variacaoMesAnterior: number | null;
+  melhorDia: { data: string; diaSemana: string; faturamento: number } | null;
+  fimDeSemanaCampeao: FimDeSemanaCampeao | null;
+  topCategorias: PontoCategoria[];
+  topItens: PontoItemRanking[];
+  perfisCliente: PontoTipoCliente[];
+  statusResumo: PontoStatus[];
+}
+
+export interface DetalheDiaBI {
+  totalPecas: number;
+  ticketMedio: number;
+  participacaoPercentual: number;
+  fimDeSemanaContexto: {
+    rotulo: string;
+    faturamentoFds: number;
+    contratosFds: number;
+    percentualDoFds: number;
+  } | null;
+  locacoes: ResumoLocacaoDia[];
+}
+
 export interface PontoEvolucaoMensal {
   mesNumero: number;
-  rotulo: string; // Ex: 'Jan/2026'
+  rotulo: string; // Ex: 'Jan'
   faturamento: number;
   volumeContratos: number;
+  detalhe: DetalheMesBI | null;
 }
 
 export interface PontoDiario {
@@ -102,14 +141,22 @@ export interface PontoDiario {
   faturamento: number;
   volumeContratos: number;
   ehFimDeSemana: boolean;
+  detalhe: DetalheDiaBI;
 }
 
 export interface FimDeSemanaCampeao {
-  rotulo: string; // Ex: "10 a 12 de Outubro"
+  rotulo: string; // Ex: "10 a 12/10"
   dataInicio: string;
   dataFim: string;
   faturamento: number;
   contratos: number;
+  dias: {
+    data: string;
+    diaSemana: string;
+    faturamento: number;
+    contratos: number;
+  }[];
+  locacoes: ResumoLocacaoDia[];
 }
 
 export interface PontoCategoria {

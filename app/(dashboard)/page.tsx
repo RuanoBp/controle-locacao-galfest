@@ -9,6 +9,7 @@ import { BIFiltros } from "@/components/dashboard/bi-filtros";
 import { BIKpis } from "@/components/dashboard/bi-kpis";
 import { BIGraficos } from "@/components/dashboard/bi-graficos";
 import { BITabs } from "@/components/dashboard/bi-tabs";
+import { BIRelatorioPrint } from "@/components/dashboard/bi-relatorio-print";
 import type { AbaBI } from "@/lib/bi/types";
 
 export const metadata = { title: "Dashboard & BI" };
@@ -72,9 +73,25 @@ export default async function DashboardPage({
 
   return (
     <div className="space-y-6">
-      {/* 1. Cabeçalho com Alto Contraste */}
+      {/* Força o modo claro exclusivamente na tela de Dashboard e oculta elementos na impressão */}
+      <style>{`
+        body {
+          background: #f8fafc !important;
+          color: #0f172a !important;
+        }
+        @media print {
+          header {
+            display: none !important;
+          }
+          body {
+            background: #ffffff !important;
+          }
+        }
+      `}</style>
+
+      {/* 1. Cabeçalho com Alto Contraste + Botão de Relatório PDF */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
+        <div className="print:hidden">
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">
               Dashboard & BI Analítico
@@ -84,97 +101,106 @@ export default async function DashboardPage({
               Modelo Dimensional Ativo
             </span>
           </div>
-          <p className="mt-1 text-sm font-bold text-slate-900">
+          <p className="mt-1 text-sm font-bold text-slate-700">
             Inteligência de locações, faturamento multidimensional e controle operacional
           </p>
         </div>
+
+        <BIRelatorioPrint
+          kpis={dadosBI.kpis}
+          evolucaoDiaria={dadosBI.evolucaoDiaria}
+          faturamentoPorCategoria={dadosBI.faturamentoPorCategoria}
+          filtros={filtros}
+        />
       </div>
 
-      {/* Aviso de migração pendente se as views não existirem */}
-      {erroMigracao && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
-          <h3 className="font-semibold text-sm text-amber-950 flex items-center gap-2">
-            ⚠️ Migração do Modelo Dimensional (BI) Pendente no Supabase
-          </h3>
-          <p className="mt-1 text-xs text-amber-800">
-            O arquivo SQL com o Star Schema foi criado em{" "}
-            <code className="bg-amber-100 px-1 py-0.5 rounded font-mono">
-              supabase/migrations/0002_bi_star_schema.sql
-            </code>
-            . Cole esse arquivo no <strong>SQL Editor</strong> do Supabase e clique em <strong>Run</strong>.
-          </p>
-        </div>
-      )}
+      <div className="space-y-6 print:hidden">
+        {/* Aviso de migração pendente se as views não existirem */}
+        {erroMigracao && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+            <h3 className="font-semibold text-sm text-amber-950 flex items-center gap-2">
+              ⚠️ Migração do Modelo Dimensional (BI) Pendente no Supabase
+            </h3>
+            <p className="mt-1 text-xs text-amber-800">
+              O arquivo SQL com o Star Schema foi criado em{" "}
+              <code className="bg-amber-100 px-1 py-0.5 rounded font-mono">
+                supabase/migrations/0002_bi_star_schema.sql
+              </code>
+              . Cole esse arquivo no <strong>SQL Editor</strong> do Supabase e clique em <strong>Run</strong>.
+            </p>
+          </div>
+        )}
 
-      {/* 2. Barra de Filtros Multidimensionais */}
-      <BIFiltros
-        anos={dadosBI.opcoesFiltros.anos}
-        categorias={dadosBI.opcoesFiltros.categorias}
-        tiposCliente={dadosBI.opcoesFiltros.tiposCliente}
-        statusList={dadosBI.opcoesFiltros.statusList}
-      />
+        {/* 2. Barra de Filtros Multidimensionais */}
+        <BIFiltros
+          anos={dadosBI.opcoesFiltros.anos}
+          categorias={dadosBI.opcoesFiltros.categorias}
+          tiposCliente={dadosBI.opcoesFiltros.tiposCliente}
+          statusList={dadosBI.opcoesFiltros.statusList}
+        />
 
-      {/* 3. Navegação em Abas (Dividida exatamente em 2 partes iguais de 50%, sem sobra) */}
-      <BITabs abaAtiva={abaAtiva} />
+        {/* 3. Navegação em Abas (Dividida exatamente em 2 partes iguais de 50%, sem sobra) */}
+        <BITabs abaAtiva={abaAtiva} />
 
-      {/* 4. Cards de KPIs */}
-      <BIKpis kpis={dadosBI.kpis} abaAtiva={abaAtiva} />
+        {/* 4. Cards de KPIs */}
+        <BIKpis kpis={dadosBI.kpis} abaAtiva={abaAtiva} />
 
-      {/* 5. Gráficos Analíticos de BI */}
-      <BIGraficos
-        evolucaoMensal={dadosBI.evolucaoMensal}
-        evolucaoDiaria={dadosBI.evolucaoDiaria}
-        fimDeSemanaCampeao={dadosBI.fimDeSemanaCampeao}
-        faturamentoPorCategoria={dadosBI.faturamentoPorCategoria}
-        faturamentoPorTipoCliente={dadosBI.faturamentoPorTipoCliente}
-        locacoesPorStatus={dadosBI.locacoesPorStatus}
-        topItens={dadosBI.topItens}
-        abaAtiva={abaAtiva}
-      />
+        {/* 5. Gráficos Analíticos de BI */}
+        <BIGraficos
+          evolucaoMensal={dadosBI.evolucaoMensal}
+          evolucaoDiaria={dadosBI.evolucaoDiaria}
+          fimDeSemanaCampeao={dadosBI.fimDeSemanaCampeao}
+          faturamentoPorCategoria={dadosBI.faturamentoPorCategoria}
+          faturamentoPorTipoCliente={dadosBI.faturamentoPorTipoCliente}
+          locacoesPorStatus={dadosBI.locacoesPorStatus}
+          topItens={dadosBI.topItens}
+          abaAtiva={abaAtiva}
+        />
 
-      {/* 6. Painel Operacional Logístico (Próximos 7 dias) */}
-      {mostrarOperacional && (
-        <div className="space-y-3 pt-2">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-            <div>
-              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">
-                Logística dos Próximos 7 Dias
-              </h2>
-              <p className="text-xs font-medium text-slate-800">
-                Acompanhamento imediato das entregas e recolhimentos agendados
-              </p>
+        {/* 6. Painel Operacional Logístico (Próximos 7 dias) */}
+        {mostrarOperacional && (
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+              <div>
+                <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">
+                  Logística dos Próximos 7 Dias
+                </h2>
+                <p className="text-xs font-medium text-slate-800">
+                  Acompanhamento imediato das entregas e recolhimentos agendados
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <Card>
+                <h3 className="mb-3 text-sm font-semibold text-slate-800 flex items-center justify-between">
+                  <span>Próximas entregas agendadas</span>
+                  <span className="text-xs font-normal text-slate-500">
+                    {proximasEntregas?.length ?? 0} previstas
+                  </span>
+                </h3>
+                <ListaLocacoes
+                  locacoes={proximasEntregas as LocacaoProxima[] | null}
+                  campoData="data_entrega"
+                />
+              </Card>
+
+              <Card>
+                <h3 className="mb-3 text-sm font-semibold text-slate-800 flex items-center justify-between">
+                  <span>Próximos recolhimentos agendados</span>
+                  <span className="text-xs font-normal text-slate-500">
+                    {proximosRecolhimentos?.length ?? 0} previstos
+                  </span>
+                </h3>
+                <ListaLocacoes
+                  locacoes={proximosRecolhimentos as LocacaoProxima[] | null}
+                  campoData="data_recolher"
+                />
+              </Card>
             </div>
           </div>
-
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <Card>
-              <h3 className="mb-3 text-sm font-semibold text-slate-800 flex items-center justify-between">
-                <span>Próximas entregas agendadas</span>
-                <span className="text-xs font-normal text-slate-500">
-                  {proximasEntregas?.length ?? 0} previstas
-                </span>
-              </h3>
-              <ListaLocacoes
-                locacoes={proximasEntregas as LocacaoProxima[] | null}
-                campoData="data_entrega"
-              />
-            </Card>
-
-            <Card>
-              <h3 className="mb-3 text-sm font-semibold text-slate-800 flex items-center justify-between">
-                <span>Próximos recolhimentos agendados</span>
-                <span className="text-xs font-normal text-slate-500">
-                  {proximosRecolhimentos?.length ?? 0} previstos
-                </span>
-              </h3>
-              <ListaLocacoes
-                locacoes={proximosRecolhimentos as LocacaoProxima[] | null}
-                campoData="data_recolher"
-              />
-            </Card>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

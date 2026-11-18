@@ -9,6 +9,7 @@ import type {
   PontoTipoCliente,
   PontoStatus,
   PontoItemRanking,
+  ResumoLocacaoDia,
   DimCategoriaItem,
   DimTipoCliente,
   DimStatusLocacao,
@@ -143,18 +144,138 @@ export async function buscarDadosBI(
       ? Math.round((somaDiasAtraso / qtdContratosAtrasados) * 10) / 10
       : 0;
 
-  // 3. Agrupamento: Evolução Temporal Mensal (Janeiro a Dezembro)
-  const mapaMeses = new Map<number, { rotulo: string; faturamento: number; contratos: Set<number> }>();
-  const NOMES_MESES = [
+  // 3. Agrupamento Diário e Análise de Finais de Semana Mais Rentáveis
+  const mapaDias = new Map<
+    string,
+    {
+      dia: number;
+      diaSemana: string;
+      faturamento: number;
+      pecas: number;
+      contratos: Set<number>;
+      ehFimDeSemana: boolean;
+      linhas: LinhaFatoBI[];
+    }
+  >();
+
+  for (const row of linhas) {
+    if (!row.data_entrega) continue;
+    const dataStr = row.data_entrega;
+    const diaNum = Number(dataStr.slice(8, 10));
+    const ds = row.dia_semana_entrega || "";
+    const ehFds =
+      ds.toLowerCase().includes("sábado") ||
+      ds.toLowerCase().includes("sabado") ||
+      ds.toLowerCase().includes("domingo") ||
+      ds.toLowerCase().includes("sexta");
+
+    const atual = mapaDias.get(dataStr) ?? {
+      dia: diaNum,
+      diaSemana: ds.split("-")[0] || ds,
+      faturamento: 0,
+      pecas: 0,
+      contratos: new Set<number>(),
+      ehFimDeSemana: ehFds,
+      linhas: [],
+    };
+
+    atual.faturamento += Number(row.valor_item) || 0;
+    atual.pecas += Number(row.quantidade) || 0;
+    atual.contratos.add(row.id_locacao);
+    atual.linhas.push(row);
+    mapaDias.set(dataStr, atual);
+  }
+
+  // Agrupamento de blocos de fim de semana (Sexta a Domingo)
+  const mapaFinsDeSemana = agruparFinsDeSemana(mapaDias);
+
+  let fimDeSemanaCampeao: FimDeSemanaCampeao | null = null;
+  let maiorFaturamentoFds = 0;
+
+  for (const fds of mapaFinsDeSemana.values()) {
+    if (fds.faturamento > maiorFaturamentoFds) {
+      maiorFaturamentoFds = fds.faturamento;
+      fimDeSemanaCampeao = fds;
+    }
+  }
+
+  const totalFaturamentoDiario = Array.from(mapaDias.values()).reduce(
+    (acc, d) => acc + d.faturamento,
+    0,
+  );
+
+  const evolucaoDiaria: PontoDiario[] = Array.from(mapaDias.entries())
+    .map(([data, info]) => {
+      const faturamentoDia = arredondarMoeda(info.faturamento);
+      const contratosDia = info.contratos.size;
+      const ticketMedioDia = contratosDia > 0 ? arredondarMoeda(faturamentoDia / contratosDia) : 0;
+      const participacaoDia =
+        totalFaturamentoDiario > 0
+          ? Math.round((info.faturamento / totalFaturamentoDiario) * 1000) / 10
+          : 0;
+
+      let fimDeSemanaContexto: PontoDiario["detalhe"]["fimDeSemanaContexto"] = null;
+      if (info.ehFimDeSemana) {
+        const chave = obterChaveFimDeSemana(data).chaveFds;
+        const fds = mapaFinsDeSemana.get(chave);
+        if (fds && fds.faturamento > 0) {
+          fimDeSemanaContexto = {
+            rotulo: fds.rotulo,
+            faturamentoFds: fds.faturamento,
+            contratosFds: fds.contratos,
+            percentualDoFds: Math.round((faturamentoDia / fds.faturamento) * 1000) / 10,
+          };
+        }
+      }
+
+      return {
+        data,
+        dia: info.dia,
+        diaSemana: info.diaSemana,
+        faturamento: faturamentoDia,
+        volumeContratos: contratosDia,
+        ehFimDeSemana: info.ehFimDeSemana,
+        detalhe: {
+          totalPecas: info.pecas,
+          ticketMedio: ticketMedioDia,
+          participacaoPercentual: participacaoDia,
+          fimDeSemanaContexto,
+          locacoes: agruparLocacoes(info.linhas),
+        },
+      };
+    })
+    .sort((a, b) => a.data.localeCompare(b.data));
+
+  // 4. Agrupamento: Evolução Temporal Mensal (Janeiro a Dezembro) com detalhe por mês
+  const NOMES_MESES_CURTOS = [
     "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
-    "Jul", "Ago", "Set", "Out", "Nov", "Dez"
+    "Jul", "Ago", "Set", "Out", "Nov", "Dez",
   ];
+  const NOMES_MESES_COMPLETOS = [
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+  ];
+
+  const mapaMeses = new Map<
+    number,
+    {
+      rotulo: string;
+      nomeCompleto: string;
+      faturamento: number;
+      pecas: number;
+      contratos: Set<number>;
+      linhas: LinhaFatoBI[];
+    }
+  >();
 
   for (let m = 1; m <= 12; m++) {
     mapaMeses.set(m, {
-      rotulo: NOMES_MESES[m - 1],
+      rotulo: NOMES_MESES_CURTOS[m - 1],
+      nomeCompleto: NOMES_MESES_COMPLETOS[m - 1],
       faturamento: 0,
+      pecas: 0,
       contratos: new Set<number>(),
+      linhas: [],
     });
   }
 
@@ -163,226 +284,87 @@ export async function buscarDadosBI(
     if (mes && mapaMeses.has(mes)) {
       const entry = mapaMeses.get(mes)!;
       entry.faturamento += Number(row.valor_item) || 0;
+      entry.pecas += Number(row.quantidade) || 0;
       entry.contratos.add(row.id_locacao);
+      entry.linhas.push(row);
     }
   }
 
-  const evolucaoMensal: PontoEvolucaoMensal[] = Array.from(mapaMeses.entries()).map(
-    ([mesNum, info]) => ({
-      mesNumero: mesNum,
-      rotulo: info.rotulo,
-      faturamento: Math.round(info.faturamento * 100) / 100,
-      volumeContratos: info.contratos.size,
-    }),
-  );
-
-  // 4. Agrupamento Diário e Análise de Finais de Semana Mais Rentáveis
-  // Quando filtrado por mês ou data específica (ou todos os dados do período)
-  const mapaDias = new Map<
-    string,
-    { dia: number; diaSemana: string; faturamento: number; contratos: Set<number>; ehFimDeSemana: boolean }
-  >();
-
-  for (const row of linhas) {
-    if (!row.data_entrega) continue;
-    const dataStr = row.data_entrega;
-    const diaNum = Number(dataStr.slice(8, 10));
-    const ds = row.dia_semana_entrega || "";
-    const ehFds = ds.toLowerCase().includes("sábado") ||
-                  ds.toLowerCase().includes("sabado") ||
-                  ds.toLowerCase().includes("domingo") ||
-                  ds.toLowerCase().includes("sexta");
-
-    const atual = mapaDias.get(dataStr) ?? {
-      dia: diaNum,
-      diaSemana: ds.split("-")[0] || ds, // Ex: "Sexta" em vez de "Sexta-feira"
-      faturamento: 0,
-      contratos: new Set<number>(),
-      ehFimDeSemana: ehFds,
-    };
-
-    atual.faturamento += Number(row.valor_item) || 0;
-    atual.contratos.add(row.id_locacao);
-    mapaDias.set(dataStr, atual);
-  }
-
-  const evolucaoDiaria: PontoDiario[] = Array.from(mapaDias.entries())
-    .map(([data, info]) => ({
-      data,
-      dia: info.dia,
-      diaSemana: info.diaSemana,
-      faturamento: Math.round(info.faturamento * 100) / 100,
-      volumeContratos: info.contratos.size,
-      ehFimDeSemana: info.ehFimDeSemana,
-    }))
-    .sort((a, b) => a.data.localeCompare(b.data));
-
-  // 4.1 Identificação do Fim de Semana Mais Rentável
-  // Agrupa blocos de fim de semana (Sexta, Sábado e Domingo consecutivos)
-  const mapaFinsDeSemana = new Map<
-    string,
-    { rotulo: string; dataInicio: string; dataFim: string; faturamento: number; contratos: Set<number> }
-  >();
-
-  for (const diaInfo of evolucaoDiaria) {
-    if (diaInfo.ehFimDeSemana) {
-      const dt = new Date(diaInfo.data + "T00:00:00");
-      const diaDaSemana = dt.getDay(); // 0: Dom, 5: Sex, 6: Sáb
-      // Encontra a sexta-feira correspondente ao fim de semana
-      const diffParaSexta = diaDaSemana === 0 ? -2 : diaDaSemana === 6 ? -1 : 0;
-      const sexta = new Date(dt);
-      sexta.setDate(sexta.getDate() + diffParaSexta);
-      const domingo = new Date(sexta);
-      domingo.setDate(domingo.getDate() + 2);
-
-      const chaveFds = sexta.toISOString().slice(0, 10);
-      const rotulo = `${sexta.getDate().toString().padStart(2, "0")} a ${domingo
-        .getDate()
-        .toString()
-        .padStart(2, "0")}/${(domingo.getMonth() + 1).toString().padStart(2, "0")}`;
-
-      const atualFds = mapaFinsDeSemana.get(chaveFds) ?? {
-        rotulo,
-        dataInicio: chaveFds,
-        dataFim: domingo.toISOString().slice(0, 10),
-        faturamento: 0,
-        contratos: new Set<number>(),
-      };
-
-      atualFds.faturamento += diaInfo.faturamento;
-      // Adiciona contratos desse dia
-      const diaOriginal = mapaDias.get(diaInfo.data);
-      if (diaOriginal) {
-        diaOriginal.contratos.forEach((id) => atualFds.contratos.add(id));
-      }
-      mapaFinsDeSemana.set(chaveFds, atualFds);
-    }
-  }
-
-  let fimDeSemanaCampeao: FimDeSemanaCampeao | null = null;
-  let maiorFaturamentoFds = 0;
-
-  for (const fds of mapaFinsDeSemana.values()) {
-    if (fds.faturamento > maiorFaturamentoFds) {
-      maiorFaturamentoFds = fds.faturamento;
-      fimDeSemanaCampeao = {
-        rotulo: fds.rotulo,
-        dataInicio: fds.dataInicio,
-        dataFim: fds.dataFim,
-        faturamento: Math.round(fds.faturamento * 100) / 100,
-        contratos: fds.contratos.size,
-      };
-    }
-  }
-
-  // 5. Agrupamento: Faturamento por Categoria
-  const mapaCategorias = new Map<string, { id: number; faturamento: number; quantidade: number }>();
-  for (const row of linhas) {
-    const catNome = row.nome_categoria || "Sem categoria";
-    const atual = mapaCategorias.get(catNome) ?? {
-      id: row.id_categoria || 0,
-      faturamento: 0,
-      quantidade: 0,
-    };
-    atual.faturamento += Number(row.valor_item) || 0;
-    atual.quantidade += Number(row.quantidade) || 0;
-    mapaCategorias.set(catNome, atual);
-  }
-
-  const faturamentoPorCategoria: PontoCategoria[] = Array.from(mapaCategorias.entries())
-    .map(([categoria, info]) => ({
-      id: info.id,
-      categoria,
-      faturamento: Math.round(info.faturamento * 100) / 100,
-      quantidade: info.quantidade,
-    }))
-    .sort((a, b) => b.faturamento - a.faturamento);
-
-  // 6. Agrupamento: Faturamento por Perfil de Cliente
-  const mapaTiposCliente = new Map<string, { id: number; faturamento: number; contratos: Set<number> }>();
-  for (const row of linhas) {
-    const tipo = row.tipo_cliente || "Outro";
-    const atual = mapaTiposCliente.get(tipo) ?? {
-      id: row.id_tipo_cliente || 0,
-      faturamento: 0,
-      contratos: new Set<number>(),
-    };
-    atual.faturamento += Number(row.valor_item) || 0;
-    atual.contratos.add(row.id_locacao);
-    mapaTiposCliente.set(tipo, atual);
-  }
-
-  const faturamentoPorTipoCliente: PontoTipoCliente[] = Array.from(mapaTiposCliente.entries())
-    .map(([tipo, info]) => ({
-      id: info.id,
-      tipo,
-      faturamento: Math.round(info.faturamento * 100) / 100,
-      contratos: info.contratos.size,
-    }))
-    .sort((a, b) => b.faturamento - a.faturamento);
-
-  // 7. Agrupamento: Locações por Status (com percentual relativo e ordenação consistente)
-  const mapaStatus = new Map<string, { id: number; faturamento: number; contratos: Set<number> }>();
-  for (const row of linhas) {
-    const st = row.status || "Indefinido";
-    const atual = mapaStatus.get(st) ?? {
-      id: row.id_status || 0,
-      faturamento: 0,
-      contratos: new Set<number>(),
-    };
-    atual.faturamento += Number(row.valor_item) || 0;
-    atual.contratos.add(row.id_locacao);
-    mapaStatus.set(st, atual);
-  }
-
-  const totalLocacoesStatus = Array.from(mapaStatus.values()).reduce(
-    (acc, curr) => acc + curr.contratos.size,
+  const totalFaturamentoAnual = Array.from(mapaMeses.values()).reduce(
+    (acc, m) => acc + m.faturamento,
     0,
   );
 
-  const locacoesPorStatus: PontoStatus[] = Array.from(mapaStatus.entries())
-    .map(([status, info]) => {
-      const qtd = info.contratos.size;
-      const pct = totalLocacoesStatus > 0 ? (qtd / totalLocacoesStatus) * 100 : 0;
+  const evolucaoMensal: PontoEvolucaoMensal[] = Array.from(mapaMeses.entries()).map(
+    ([mesNum, info]) => {
+      const faturamentoMes = arredondarMoeda(info.faturamento);
+      const qtdContratos = info.contratos.size;
+
+      if (qtdContratos === 0 && faturamentoMes === 0) {
+        return {
+          mesNumero: mesNum,
+          rotulo: info.rotulo,
+          faturamento: 0,
+          volumeContratos: 0,
+          detalhe: null,
+        };
+      }
+
+      const mesAnterior = mesNum > 1 ? mapaMeses.get(mesNum - 1) : undefined;
+      const variacaoMesAnterior =
+        mesAnterior && mesAnterior.faturamento > 0
+          ? Math.round(((info.faturamento - mesAnterior.faturamento) / mesAnterior.faturamento) * 1000) / 10
+          : null;
+
+      const diasDoMes = evolucaoDiaria.filter((d) => Number(d.data.slice(5, 7)) === mesNum);
+      let melhorDia: { data: string; diaSemana: string; faturamento: number } | null = null;
+      for (const d of diasDoMes) {
+        if (!melhorDia || d.faturamento > melhorDia.faturamento) {
+          melhorDia = { data: d.data, diaSemana: d.diaSemana, faturamento: d.faturamento };
+        }
+      }
+
+      const mapaDiasMes = new Map(
+        Array.from(mapaDias.entries()).filter(([data]) => Number(data.slice(5, 7)) === mesNum),
+      );
+      const fdsMes = agruparFinsDeSemana(mapaDiasMes);
+      let fdsCampeaoMes: FimDeSemanaCampeao | null = null;
+      for (const fds of fdsMes.values()) {
+        if (!fdsCampeaoMes || fds.faturamento > fdsCampeaoMes.faturamento) {
+          fdsCampeaoMes = fds;
+        }
+      }
+
       return {
-        id: info.id,
-        status,
-        faturamento: Math.round(info.faturamento * 100) / 100,
-        quantidade: qtd,
-        percentual: Math.round(pct * 10) / 10,
+        mesNumero: mesNum,
+        rotulo: info.rotulo,
+        faturamento: faturamentoMes,
+        volumeContratos: qtdContratos,
+        detalhe: {
+          nomeCompleto: info.nomeCompleto,
+          totalPecas: info.pecas,
+          ticketMedio: qtdContratos > 0 ? arredondarMoeda(faturamentoMes / qtdContratos) : 0,
+          participacaoPercentual:
+            totalFaturamentoAnual > 0
+              ? Math.round((info.faturamento / totalFaturamentoAnual) * 1000) / 10
+              : 0,
+          variacaoMesAnterior,
+          melhorDia,
+          fimDeSemanaCampeao: fdsCampeaoMes,
+          topCategorias: agruparCategorias(info.linhas).slice(0, 3),
+          topItens: agruparTopItens(info.linhas, 5),
+          perfisCliente: agruparTiposCliente(info.linhas),
+          statusResumo: agruparStatus(info.linhas),
+        },
       };
-    })
-    .sort((a, b) => b.quantidade - a.quantidade);
+    },
+  );
 
-  // 8. Agrupamento: Top 10 Itens Mais Rentáveis
-  const mapaItens = new Map<
-    number,
-    { nome: string; categoria: string; faturamento: number; quantidadeTotal: number }
-  >();
-
-  for (const row of linhas) {
-    const idItem = row.id_item;
-    const atual = mapaItens.get(idItem) ?? {
-      nome: row.nome_item || `Item #${idItem}`,
-      categoria: row.nome_categoria || "Sem categoria",
-      faturamento: 0,
-      quantidadeTotal: 0,
-    };
-    atual.faturamento += Number(row.valor_item) || 0;
-    atual.quantidadeTotal += Number(row.quantidade) || 0;
-    mapaItens.set(idItem, atual);
-  }
-
-  const topItens: PontoItemRanking[] = Array.from(mapaItens.entries())
-    .map(([id, info]) => ({
-      id,
-      nome: info.nome,
-      categoria: info.categoria,
-      faturamento: Math.round(info.faturamento * 100) / 100,
-      quantidadeTotal: info.quantidadeTotal,
-    }))
-    .sort((a, b) => b.faturamento - a.faturamento)
-    .slice(0, 10);
+  // 5. Agrupamentos Gerais do Período
+  const faturamentoPorCategoria = agruparCategorias(linhas);
+  const faturamentoPorTipoCliente = agruparTiposCliente(linhas);
+  const locacoesPorStatus = agruparStatus(linhas);
+  const topItens = agruparTopItens(linhas, 10);
 
   // 9. Anos disponíveis para filtro
   const anoAtual = new Date().getFullYear();
@@ -489,4 +471,263 @@ function obterDadosVazios(): DadosDashboardBI {
       statusList: [],
     },
   };
+}
+
+function arredondarMoeda(valor: number): number {
+  return Math.round(valor * 100) / 100;
+}
+
+function obterChaveFimDeSemana(dataStr: string) {
+  const dt = new Date(dataStr + "T00:00:00");
+  const diaDaSemana = dt.getDay(); // 0: Dom, 5: Sex, 6: Sáb
+  const diffParaSexta = diaDaSemana === 0 ? -2 : diaDaSemana === 6 ? -1 : 0;
+  const sexta = new Date(dt);
+  sexta.setDate(sexta.getDate() + diffParaSexta);
+  const domingo = new Date(sexta);
+  domingo.setDate(domingo.getDate() + 2);
+
+  const chaveFds = sexta.toISOString().slice(0, 10);
+  const rotulo = `${sexta.getDate().toString().padStart(2, "0")} a ${domingo
+    .getDate()
+    .toString()
+    .padStart(2, "0")}/${(domingo.getMonth() + 1).toString().padStart(2, "0")}`;
+
+  return {
+    chaveFds,
+    rotulo,
+    dataInicio: chaveFds,
+    dataFim: domingo.toISOString().slice(0, 10),
+  };
+}
+
+function agruparFinsDeSemana(
+  mapaDias: Map<
+    string,
+    {
+      dia: number;
+      diaSemana: string;
+      faturamento: number;
+      pecas: number;
+      contratos: Set<number>;
+      ehFimDeSemana: boolean;
+      linhas: LinhaFatoBI[];
+    }
+  >,
+): Map<string, FimDeSemanaCampeao> {
+  const acumulado = new Map<
+    string,
+    {
+      rotulo: string;
+      dataInicio: string;
+      dataFim: string;
+      faturamento: number;
+      contratos: Set<number>;
+      dias: { data: string; diaSemana: string; faturamento: number; contratos: number }[];
+      linhas: LinhaFatoBI[];
+    }
+  >();
+
+  for (const [data, info] of mapaDias.entries()) {
+    if (!info.ehFimDeSemana) continue;
+    const { chaveFds, rotulo, dataInicio, dataFim } = obterChaveFimDeSemana(data);
+    const atual = acumulado.get(chaveFds) ?? {
+      rotulo,
+      dataInicio,
+      dataFim,
+      faturamento: 0,
+      contratos: new Set<number>(),
+      dias: [],
+      linhas: [],
+    };
+
+    atual.faturamento += info.faturamento;
+    info.contratos.forEach((id) => atual.contratos.add(id));
+    atual.dias.push({
+      data,
+      diaSemana: info.diaSemana,
+      faturamento: arredondarMoeda(info.faturamento),
+      contratos: info.contratos.size,
+    });
+    atual.linhas.push(...info.linhas);
+    acumulado.set(chaveFds, atual);
+  }
+
+  const resultado = new Map<string, FimDeSemanaCampeao>();
+  for (const [chave, fds] of acumulado.entries()) {
+    resultado.set(chave, {
+      rotulo: fds.rotulo,
+      dataInicio: fds.dataInicio,
+      dataFim: fds.dataFim,
+      faturamento: arredondarMoeda(fds.faturamento),
+      contratos: fds.contratos.size,
+      dias: [...fds.dias].sort((a, b) => a.data.localeCompare(b.data)),
+      locacoes: agruparLocacoes(fds.linhas),
+    });
+  }
+
+  return resultado;
+}
+
+function agruparLocacoes(linhas: LinhaFatoBI[]): ResumoLocacaoDia[] {
+  const mapa = new Map<
+    number,
+    {
+      idLocacao: number;
+      clienteNome: string;
+      tipoCliente: string;
+      status: string;
+      dataEntrega: string;
+      dataRecolhimento: string | null;
+      valorTotal: number;
+      itens: Map<string, number>;
+    }
+  >();
+
+  for (const row of linhas) {
+    const atual = mapa.get(row.id_locacao) ?? {
+      idLocacao: row.id_locacao,
+      clienteNome: row.cliente_nome || "Cliente",
+      tipoCliente: row.tipo_cliente || "Outro",
+      status: row.status || "Indefinido",
+      dataEntrega: row.data_entrega || "",
+      dataRecolhimento: row.data_recolhimento,
+      valorTotal: 0,
+      itens: new Map<string, number>(),
+    };
+
+    atual.valorTotal += Number(row.valor_item) || 0;
+    const nomeItem = row.nome_item || `Item #${row.id_item}`;
+    atual.itens.set(nomeItem, (atual.itens.get(nomeItem) ?? 0) + (Number(row.quantidade) || 0));
+    mapa.set(row.id_locacao, atual);
+  }
+
+  return Array.from(mapa.values())
+    .map((loc) => ({
+      idLocacao: loc.idLocacao,
+      clienteNome: loc.clienteNome,
+      tipoCliente: loc.tipoCliente,
+      status: loc.status,
+      dataEntrega: loc.dataEntrega,
+      dataRecolhimento: loc.dataRecolhimento,
+      valorTotal: arredondarMoeda(loc.valorTotal),
+      itensResumo: Array.from(loc.itens.entries()).map(([nome, quantidade]) => ({
+        nome,
+        quantidade,
+      })),
+    }))
+    .sort((a, b) => b.valorTotal - a.valorTotal);
+}
+
+function agruparCategorias(linhas: LinhaFatoBI[]): PontoCategoria[] {
+  const mapa = new Map<string, { id: number; faturamento: number; quantidade: number }>();
+  for (const row of linhas) {
+    const catNome = row.nome_categoria || "Sem categoria";
+    const atual = mapa.get(catNome) ?? {
+      id: row.id_categoria || 0,
+      faturamento: 0,
+      quantidade: 0,
+    };
+    atual.faturamento += Number(row.valor_item) || 0;
+    atual.quantidade += Number(row.quantidade) || 0;
+    mapa.set(catNome, atual);
+  }
+
+  return Array.from(mapa.entries())
+    .map(([categoria, info]) => ({
+      id: info.id,
+      categoria,
+      faturamento: arredondarMoeda(info.faturamento),
+      quantidade: info.quantidade,
+    }))
+    .sort((a, b) => b.faturamento - a.faturamento);
+}
+
+function agruparTiposCliente(linhas: LinhaFatoBI[]): PontoTipoCliente[] {
+  const mapa = new Map<string, { id: number; faturamento: number; contratos: Set<number> }>();
+  for (const row of linhas) {
+    const tipo = row.tipo_cliente || "Outro";
+    const atual = mapa.get(tipo) ?? {
+      id: row.id_tipo_cliente || 0,
+      faturamento: 0,
+      contratos: new Set<number>(),
+    };
+    atual.faturamento += Number(row.valor_item) || 0;
+    atual.contratos.add(row.id_locacao);
+    mapa.set(tipo, atual);
+  }
+
+  return Array.from(mapa.entries())
+    .map(([tipo, info]) => ({
+      id: info.id,
+      tipo,
+      faturamento: arredondarMoeda(info.faturamento),
+      contratos: info.contratos.size,
+    }))
+    .sort((a, b) => b.faturamento - a.faturamento);
+}
+
+function agruparStatus(linhas: LinhaFatoBI[]): PontoStatus[] {
+  const mapa = new Map<string, { id: number; faturamento: number; contratos: Set<number> }>();
+  for (const row of linhas) {
+    const st = row.status || "Indefinido";
+    const atual = mapa.get(st) ?? {
+      id: row.id_status || 0,
+      faturamento: 0,
+      contratos: new Set<number>(),
+    };
+    atual.faturamento += Number(row.valor_item) || 0;
+    atual.contratos.add(row.id_locacao);
+    mapa.set(st, atual);
+  }
+
+  const totalLocacoesStatus = Array.from(mapa.values()).reduce(
+    (acc, curr) => acc + curr.contratos.size,
+    0,
+  );
+
+  return Array.from(mapa.entries())
+    .map(([status, info]) => {
+      const qtd = info.contratos.size;
+      const pct = totalLocacoesStatus > 0 ? (qtd / totalLocacoesStatus) * 100 : 0;
+      return {
+        id: info.id,
+        status,
+        faturamento: arredondarMoeda(info.faturamento),
+        quantidade: qtd,
+        percentual: Math.round(pct * 10) / 10,
+      };
+    })
+    .sort((a, b) => b.quantidade - a.quantidade);
+}
+
+function agruparTopItens(linhas: LinhaFatoBI[], limite?: number): PontoItemRanking[] {
+  const mapa = new Map<
+    number,
+    { nome: string; categoria: string; faturamento: number; quantidadeTotal: number }
+  >();
+
+  for (const row of linhas) {
+    const idItem = row.id_item;
+    const atual = mapa.get(idItem) ?? {
+      nome: row.nome_item || `Item #${idItem}`,
+      categoria: row.nome_categoria || "Sem categoria",
+      faturamento: 0,
+      quantidadeTotal: 0,
+    };
+    atual.faturamento += Number(row.valor_item) || 0;
+    atual.quantidadeTotal += Number(row.quantidade) || 0;
+    mapa.set(idItem, atual);
+  }
+
+  const lista = Array.from(mapa.entries())
+    .map(([id, info]) => ({
+      id,
+      nome: info.nome,
+      categoria: info.categoria,
+      faturamento: arredondarMoeda(info.faturamento),
+      quantidadeTotal: info.quantidadeTotal,
+    }))
+    .sort((a, b) => b.faturamento - a.faturamento);
+
+  return typeof limite === "number" ? lista.slice(0, limite) : lista;
 }

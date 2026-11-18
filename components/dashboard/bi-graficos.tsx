@@ -1,5 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { formatarMoeda } from "@/lib/calculos";
+import { BIGraficosTemporais } from "./bi-graficos-temporais";
 import type {
   PontoEvolucaoMensal,
   PontoDiario,
@@ -32,8 +33,6 @@ export function BIGraficos({
   topItens,
   abaAtiva = "financeiro",
 }: BIGraficosProps) {
-  const maxMensal = Math.max(1, ...evolucaoMensal.map((m) => m.faturamento));
-  const maxDiario = Math.max(1, ...evolucaoDiaria.map((d) => d.faturamento));
   const totalCat = faturamentoPorCategoria.reduce((acc, c) => acc + c.faturamento, 0);
   const maxCat = Math.max(1, ...faturamentoPorCategoria.map((c) => c.faturamento));
   const maxTipo = Math.max(1, ...faturamentoPorTipoCliente.map((t) => t.faturamento));
@@ -59,143 +58,11 @@ export function BIGraficos({
       {/* ==================================================================== */}
       {ehFinanceiro && (
         <>
-          {/* Evolução Temporal Mês a Mês (Barras em Azul Vibrante) */}
-          <Card>
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">
-                  Evolução Temporal do Faturamento (Mensal)
-                </h3>
-                <p className="text-xs font-medium text-slate-500">
-                  Receita consolidada mês a mês baseada na data agendada de entrega
-                </p>
-              </div>
-              <div className="text-right">
-                <span className="text-xs font-medium text-slate-500">Total no período: </span>
-                <span className="text-sm font-bold text-blue-600">
-                  {formatarMoeda(evolucaoMensal.reduce((s, m) => s + m.faturamento, 0))}
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-12 gap-2 items-end pt-6 pb-2 min-h-[180px]">
-              {evolucaoMensal.map((item) => {
-                const altura = Math.max(4, (item.faturamento / maxMensal) * 100);
-                return (
-                  <div key={item.mesNumero} className="flex flex-col items-center gap-2 group">
-                    <div className="relative w-full flex items-end justify-center h-32">
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-12 z-10 bg-slate-900 text-white text-[11px] px-2 py-1 rounded shadow-md whitespace-nowrap pointer-events-none">
-                        <p className="font-semibold">{item.rotulo}</p>
-                        <p>{formatarMoeda(item.faturamento)}</p>
-                        <p className="text-[10px] text-slate-300">
-                          {item.volumeContratos} contratos
-                        </p>
-                      </div>
-                      <div
-                        style={{ height: `${altura}%` }}
-                        className={`w-full max-w-[28px] rounded-t transition-all ${
-                          item.faturamento > 0
-                            ? "bg-blue-600 group-hover:bg-blue-700"
-                            : "bg-slate-100"
-                        }`}
-                      />
-                    </div>
-                    <span className="text-[11px] font-bold text-slate-800">
-                      {item.rotulo}
-                    </span>
-                    <span className="text-[10px] font-semibold text-slate-500 tabular-nums">
-                      {item.faturamento > 0
-                        ? `${Math.round(item.faturamento / 1000)}k`
-                        : "-"}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
-
-          {/* Análise Diária & Fim de Semana Campeão (Índigo e Sky) */}
-          {evolucaoDiaria.length > 0 && (
-            <Card>
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Desempenho Diário & Finais de Semana Mais Rentáveis
-                  </h3>
-                  <p className="text-xs font-medium text-slate-500">
-                    Distribuição da receita dia a dia com destaque para sextas, sábados e domingos
-                  </p>
-                </div>
-
-                {fimDeSemanaCampeao && (
-                  <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-300 px-3 py-1.5 text-xs text-amber-950">
-                    <span className="text-base">🏆</span>
-                    <div>
-                      <span className="font-bold">Fim de Semana Campeão: </span>
-                      <span>{fimDeSemanaCampeao.rotulo}</span>
-                      <span className="font-bold text-amber-950 ml-1">
-                        ({formatarMoeda(fimDeSemanaCampeao.faturamento)})
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Gráfico de Barras Diárias Coloridas */}
-              <div className="space-y-2 pt-2">
-                <div className="flex items-end gap-1.5 overflow-x-auto pb-2 min-h-[160px]">
-                  {evolucaoDiaria.map((d) => {
-                    const altura = Math.max(6, (d.faturamento / maxDiario) * 100);
-                    return (
-                      <div
-                        key={d.data}
-                        className="flex flex-col items-center min-w-[36px] flex-1 group"
-                      >
-                        <div className="relative w-full flex items-end justify-center h-28">
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-12 z-10 bg-slate-900 text-white text-[11px] px-2 py-1 rounded shadow-md whitespace-nowrap pointer-events-none">
-                            <p className="font-semibold">{d.data} ({d.diaSemana})</p>
-                            <p>{formatarMoeda(d.faturamento)}</p>
-                            <p className="text-[10px] text-slate-300">
-                              {d.volumeContratos} contratos {d.ehFimDeSemana && "• Fim de Semana"}
-                            </p>
-                          </div>
-                          <div
-                            style={{ height: `${altura}%` }}
-                            className={`w-full max-w-[24px] rounded-t transition-all ${
-                              d.ehFimDeSemana
-                                ? "bg-indigo-600 group-hover:bg-indigo-700"
-                                : "bg-sky-500 group-hover:bg-sky-600"
-                            }`}
-                          />
-                        </div>
-                        <span
-                          className={`mt-1 text-[11px] font-bold ${
-                            d.ehFimDeSemana ? "text-indigo-700 font-bold" : "text-slate-600"
-                          }`}
-                        >
-                          {d.dia}
-                        </span>
-                        <span className="text-[9px] font-semibold text-slate-500 truncate max-w-[36px]">
-                          {d.diaSemana.slice(0, 3)}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="flex items-center gap-4 pt-2 text-xs font-medium text-slate-700 border-t border-slate-100">
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-3 w-3 rounded-xs bg-indigo-600" />
-                    <span className="font-semibold text-indigo-900">Final de Semana (Sexta a Domingo)</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-3 w-3 rounded-xs bg-sky-500" />
-                    <span className="text-slate-600">Dias Úteis (Segunda a Quinta)</span>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          )}
+          <BIGraficosTemporais
+            evolucaoMensal={evolucaoMensal}
+            evolucaoDiaria={evolucaoDiaria}
+            fimDeSemanaCampeao={fimDeSemanaCampeao}
+          />
 
           {/* Distribuição por Categoria e Perfil de Cliente */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
